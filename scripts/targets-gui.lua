@@ -17,37 +17,106 @@ local function entry_for(player)
 		return entry
 	end
 end
-local function row(table_gui, target, index)
-	local item = table_gui.add({
+local function body_for(player)
+	local frame = player.gui.screen[ROOT]
+	return frame and frame[PREFIX .. "tabs"]["content-3"]
+end
+local function render_grid(body, entry)
+	local grid = body.scroll.grid
+	grid.clear()
+	local slots = math.max(40, math.ceil((#entry.targets + 1) / 10) * 10)
+	for i = 1, slots do
+		local target = entry.targets[i]
+		local item = target and target.item
+		local slot = grid.add({
+			type = "sprite-button",
+			name = "slot-" .. i,
+			style = "slot_button",
+			tags = { sqc = "slot", row = i },
+			mouse_button_filter = { "left", "right" },
+		})
+		if item then
+			slot.sprite = "item/" .. item.name
+			slot.quality = item.quality
+			slot.number = target.count or 0
+			slot.tooltip = {
+				"",
+				prototypes.item[item.name].localised_name,
+				" (",
+				prototypes.quality[item.quality].localised_name,
+				")\n",
+				{ "sqc.stock" },
+				": ",
+				tostring(target.count or 0),
+				"\n",
+				{ "sqc.slot-help" },
+			}
+		else
+			slot.tooltip = { "sqc.add" }
+			if i == #entry.targets + 1 then
+				slot.sprite = "utility/add"
+			end
+		end
+	end
+	body["automation-enabled"].state = entry.enabled
+end
+local function edit_slot(player, entry, index)
+	local body = body_for(player)
+	local editor = body["slot-editor"]
+	editor.clear()
+	editor.visible = true
+	editor.tags = { row = index, revision = entry.target_revision or 0 }
+	local target = entry.targets[index] or { count = 50 }
+	editor.add({ type = "label", caption = { target.item and "sqc.edit" or "sqc.add" }, style = "heading_2_label" })
+	local fields = editor.add({ type = "flow", name = "fields", direction = "horizontal" })
+	local item = fields.add({
 		type = "choose-elem-button",
+		name = "item",
 		elem_type = "item-with-quality",
-		name = "item-" .. index,
-		tags = { sqc = "item", row = index },
+		tags = {
+			sqc = "item",
+		},
 	})
 	item.elem_value = target.item
-	local label = table_gui.add({
+	local details = fields.add({ type = "flow", name = "details", direction = "vertical" })
+	local label = details.add({
 		type = "label",
-		name = "label-" .. index,
+		name = "item-label",
 		caption = target.item and prototypes.item[target.item.name].localised_name or { "sqc.choose-item" },
 	})
-	label.style.width = 210
-	local amount = table_gui.add({
+	label.style.width = 290
+	local amount_row = details.add({ type = "flow", name = "stock", direction = "horizontal" })
+	amount_row.add({ type = "label", caption = { "sqc.stock" } })
+	local amount = amount_row.add({
 		type = "textfield",
-		name = "amount-" .. index,
+		name = "amount",
 		text = tostring(target.count or 0),
 		numeric = true,
 		allow_decimal = false,
 		allow_negative = false,
-		tags = { sqc = "amount", row = index },
+		tags = { sqc = "amount" },
 	})
-	amount.style.width = 100
-	table_gui.add({
-		type = "sprite-button",
-		sprite = "utility/trash",
-		style = "tool_button",
-		tooltip = { "sqc.remove" },
-		tags = { sqc = "remove", row = index },
+	amount.style.width = 110
+	local error_label = editor.add({ type = "label", name = "error-label", caption = "" })
+	error_label.style.font_color = { 1, 0.45, 0.35 }
+	error_label.style.single_line = false
+	error_label.style.width = 400
+	error_label.visible = false
+	local actions = editor.add({ type = "flow", name = "actions", direction = "horizontal" })
+	actions.add({ type = "button", name = "cancel", caption = { "gui.cancel" }, tags = { sqc = "cancel" } })
+	actions.add({
+		type = "button",
+		name = "apply",
+		caption = { "gui.confirm" },
+		style = "confirm_button",
+		tags = {
+			sqc = "apply",
+		},
 	})
+	if target.item then
+		amount.focus()
+		amount.select_all()
+	end
 end
 function M.open(player, entry)
 	close(player)
@@ -75,13 +144,14 @@ function M.open(player, entry)
 	end
 	pane.selected_tab_index = 3
 	local body = pane["content-3"]
-	local hint = body.add({ type = "label", caption = { "sqc.help" } })
+	local hint = body.add({ type = "label", caption = { "sqc.grid-help" } })
 	hint.style.single_line = false
-	hint.style.width = 480
+	hint.style.width = 440
 	body.add({
 		type = "checkbox",
 		name = "automation-enabled",
 		caption = { "sqc.enabled" },
+		tooltip = { "sqc.help" },
 		state = entry.enabled,
 		tags = {
 			sqc = "enabled",
@@ -89,25 +159,29 @@ function M.open(player, entry)
 	})
 	local status = body.add({ type = "label", name = "status", caption = entry.status or { "sqc.starting" } })
 	status.style.single_line = false
-	status.style.width = 480
-	local headers = body.add({ type = "flow", direction = "horizontal" })
-	headers.add({ type = "label", caption = { "sqc.item-quality" } }).style.width = 254
-	headers.add({ type = "label", caption = { "sqc.stock" } })
+	status.style.width = 440
+	local hint = body.add({ type = "label", caption = { "sqc.slot-help" } })
+	hint.style.font_color = { 0.7, 0.7, 0.7 }
 	local scroll =
 		body.add({ type = "scroll-pane", name = "scroll", direction = "vertical", horizontal_scroll_policy = "never" })
-	scroll.style.maximal_height = 420
-	scroll.style.minimal_width = 480
-	local rows = scroll.add({ type = "table", name = "rows", column_count = 4, vertical_centering = true })
-	for i, target in ipairs(entry.targets) do
-		row(rows, target, i)
-	end
-	body.add({ type = "button", caption = { "sqc.add" }, tags = { sqc = "add" } })
+	scroll.style.maximal_height = 320
+	scroll.style.minimal_width = 440
+	local grid = scroll.add({ type = "table", name = "grid", column_count = 10 })
+	grid.style.horizontal_spacing = 0
+	grid.style.vertical_spacing = 0
+	local editor =
+		body.add({ type = "frame", name = "slot-editor", direction = "vertical", style = "inside_shallow_frame" })
+	editor.visible = false
+	render_grid(body, entry)
 	player.opened = frame
 end
 local function refresh(entry, except)
 	for _, player in pairs(game.players) do
 		if player.index ~= except and entry_for(player) == entry then
-			M.open(player, entry)
+			local body = body_for(player)
+			if body then
+				render_grid(body, entry)
+			end
 		end
 	end
 end
@@ -121,6 +195,36 @@ function M.on_gui_closed(event)
 	if event.element and event.element.valid and event.element.name == ROOT then
 		close(game.get_player(event.player_index))
 	end
+end
+local function changed(entry)
+	entry.target_revision = (entry.target_revision or 0) + 1
+	refresh(entry)
+end
+local function commit(player, entry)
+	local editor = body_for(player)["slot-editor"]
+	if not editor.visible then
+		return
+	end
+	local item = editor.fields.item.elem_value
+	local amount = tonumber(editor.fields.details.stock.amount.text)
+	local message
+	if editor.tags.revision ~= (entry.target_revision or 0) then
+		message = { "sqc.changed" }
+	elseif not item or item.quality == "normal" or not entry.condenser.force.is_quality_unlocked(item.quality) then
+		message = { "sqc.invalid-item" }
+	elseif not amount or amount < 1 or amount > 2147483647 then
+		message = { "sqc.invalid-count" }
+	end
+	if message then
+		editor["error-label"].caption = message
+		editor["error-label"].visible = true
+		return
+	end
+	local index = math.min(editor.tags.row, #entry.targets + 1)
+	entry.targets[index] = { item = { name = item.name, quality = item.quality }, count = math.floor(amount) }
+	entry.enabled = true
+	editor.visible = false
+	changed(entry)
 end
 function M.on_gui_click(event)
 	local action = event.element.tags.sqc
@@ -138,14 +242,21 @@ function M.on_gui_click(event)
 		close(player)
 		return
 	end
-	if action == "add" then
-		entry.targets[#entry.targets + 1] = { count = 50 }
-		M.open(player, entry)
-		refresh(entry, player.index)
-	elseif action == "remove" then
-		table.remove(entry.targets, event.element.tags.row)
-		M.open(player, entry)
-		refresh(entry, player.index)
+	if action == "slot" then
+		local index = event.element.tags.row
+		if event.button == defines.mouse_button_type.right then
+			if entry.targets[index] then
+				table.remove(entry.targets, index)
+				body_for(player)["slot-editor"].visible = false
+				changed(entry)
+			end
+		else
+			edit_slot(player, entry, math.min(index, #entry.targets + 1))
+		end
+	elseif action == "apply" then
+		commit(player, entry)
+	elseif action == "cancel" then
+		body_for(player)["slot-editor"].visible = false
 	end
 end
 function M.on_gui_elem_changed(event)
@@ -153,35 +264,23 @@ function M.on_gui_elem_changed(event)
 		return
 	end
 	local player = game.get_player(event.player_index)
-	local entry = entry_for(player)
-	if not entry then
+	local body = body_for(player)
+	if not body then
 		return
 	end
-	local target = entry.targets[event.element.tags.row]
-	if not target then
-		return
-	end
-	target.item = event.element.elem_value
-	if target.item and target.item.quality ~= "normal" then
-		entry.enabled = true
-		player.gui.screen[ROOT][PREFIX .. "tabs"]["content-3"]["automation-enabled"].state = true
-	end
-	local label = event.element.parent["label-" .. event.element.tags.row]
-	label.caption = target.item and prototypes.item[target.item.name].localised_name or { "sqc.choose-item" }
-	refresh(entry, player.index)
+	local item = event.element.elem_value
+	body["slot-editor"].fields.details["item-label"].caption = item and prototypes.item[item.name].localised_name
+		or { "sqc.choose-item" }
 end
-function M.on_gui_text_changed(event)
+function M.on_gui_confirmed(event)
 	if event.element.tags.sqc ~= "amount" then
 		return
 	end
 	local player = game.get_player(event.player_index)
 	local entry = entry_for(player)
-	local target = entry and entry.targets[event.element.tags.row]
-	if not target then
-		return
+	if entry then
+		commit(player, entry)
 	end
-	target.count = math.min(2147483647, tonumber(event.element.text) or 0)
-	refresh(entry, player.index)
 end
 function M.on_gui_checked_state_changed(event)
 	if event.element.tags.sqc ~= "enabled" then
@@ -191,7 +290,7 @@ function M.on_gui_checked_state_changed(event)
 	local entry = entry_for(player)
 	if entry then
 		entry.enabled = event.element.state
-		refresh(entry, player.index)
+		changed(entry)
 	end
 end
 function M.on_gui_selected_tab_changed(event)
@@ -251,7 +350,7 @@ function M.on_settings_pasted(event)
 	local source, dest = Smart.get(event.source), Smart.get(event.destination)
 	if source and dest then
 		Smart.apply(dest, Smart.config(source))
-		refresh(dest)
+		changed(dest)
 	end
 end
 return M

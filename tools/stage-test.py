@@ -10,7 +10,7 @@ import zipfile
 parser = argparse.ArgumentParser(description=__doc__)
 parser.add_argument('--mods', type=Path, required=True, help='Installed mod directory, used read-only')
 parser.add_argument('--data', type=Path, required=True, help='Factorio data directory')
-parser.add_argument('--save', type=Path, help='Test migration from an existing 0.1.0 save instead of fresh logistics')
+parser.add_argument('--save', type=Path, help='Test migration from an existing condenser save instead of fresh logistics')
 parser.add_argument('--output', type=Path, help='New isolated stage directory')
 args = parser.parse_args()
 root = Path(__file__).resolve().parents[1]

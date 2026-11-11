@@ -6,7 +6,9 @@ A standalone fork of [Quality condenser (forked)](https://mods.factorio.com/mod/
 
 1. Research and build a quality condenser. Add quality modules and power, and place it inside roboport logistic coverage.
 2. Open the condenser and select its **Targets** tab.
-3. Click **Add target**, choose an item and its desired quality, and enter the **Stock to keep**. Choosing an upgraded quality enables **Automatic logistics**.
+3. Click an empty slot in the target grid. Choose an item and its desired quality, enter the **Stock to keep**, and press **Enter** or **Confirm**. Confirming a target enables **Automatic logistics**.
+
+Each slot shows its item icon, quality badge, and stock amount. Left-click an existing slot to edit it; right-click to remove it. Canceling an edit leaves the saved target unchanged.
 
 For example, set rare beacons to 50, rare speed modules to 50, and uncommon gears to 100. Robots supply lower-quality items and collect finished products. Different items and target qualities run together, including multiple qualities of the same item. Each condenser has its own targets.
 

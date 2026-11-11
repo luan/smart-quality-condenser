@@ -87,15 +87,15 @@ return function(Smart, Gui, initialize_base, Handler)
 			return player.gui.screen["smart-quality-condenser-editor"]["smart-quality-condenser-tabs"]["content-3"]
 		end
 		local function add(name, quality, count)
-			Gui.on_gui_click({ player_index = player.index, element = body().children[#body().children] })
-			local rows = body().scroll.rows
-			local i = #entry.targets
-			local item = rows["item-" .. i]
+			local slot = body().scroll.grid["slot-" .. (#entry.targets + 1)]
+			Gui.on_gui_click({ player_index = player.index, element = slot, button = defines.mouse_button_type.left })
+			local editor = body()["slot-editor"]
+			local item = editor.fields.item
 			item.elem_value = { name = name, quality = quality }
 			Gui.on_gui_elem_changed({ player_index = player.index, element = item })
-			local amount = rows["amount-" .. i]
+			local amount = editor.fields.details.stock.amount
 			amount.text = tostring(count)
-			Gui.on_gui_text_changed({ player_index = player.index, element = amount })
+			Gui.on_gui_confirmed({ player_index = player.index, element = amount })
 		end
 		local chest = s.create_entity({ name = "storage-chest", position = { -18.5, -6.5 }, force = f })
 		for i, name in ipairs(ITEMS) do
@@ -104,6 +104,34 @@ return function(Smart, Gui, initialize_base, Handler)
 		end
 		add("copper-cable", "uncommon", 10)
 		add("iron-plate", "legendary", 10)
+		assert(#entry.targets == 26, "Grid lost targets")
+		local grid = body().scroll.grid
+		assert(#grid.children == 40, "Grid should fit 27 targets in four compact rows")
+		assert(
+			grid["slot-1"].number == 10 and grid["slot-1"].quality.name == "rare",
+			"Slot amount or quality badge missing"
+		)
+		-- Canceling and validation must leave the live target list untouched.
+		Gui.on_gui_click({ player_index = player.index, element = grid["slot-27"] })
+		Gui.on_gui_click({ player_index = player.index, element = body()["slot-editor"].actions.cancel })
+		assert(#entry.targets == 26, "Cancel added a target")
+		add("iron-plate", "normal", 10)
+		assert(
+			#entry.targets == 26 and body()["slot-editor"]["error-label"].visible,
+			"Normal-quality target was accepted"
+		)
+		add("copper-plate", "rare", 0)
+		assert(#entry.targets == 26 and body()["slot-editor"]["error-label"].visible, "Zero stock target was accepted")
+		local draft = body()["slot-editor"]
+		draft.fields.details.stock.amount.text = "17"
+		Gui.on_gui_click({ player_index = player.index, element = draft.actions.apply })
+		assert(#entry.targets == 27 and entry.targets[27].count == 17, "New target was not committed")
+		Gui.on_gui_click({
+			player_index = player.index,
+			element = body().scroll.grid["slot-27"],
+			button = defines.mouse_button_type.right,
+		})
+		assert(#entry.targets == 26, "Right-click did not remove target")
 		-- The same item has targets at uncommon and rare, and plates at rare and legendary.
 		storage.cond = cond
 		storage.entry = entry
@@ -179,7 +207,7 @@ return function(Smart, Gui, initialize_base, Handler)
 				end
 			end
 
-			if t == 10005 then
+			if t == 135 then
 				local other = c.clone({ position = { 40.5, 40.5 }, surface = s, force = c.force })
 				assert(other, "Condenser clone failed")
 				local second = Smart.get(other)
@@ -200,9 +228,19 @@ return function(Smart, Gui, initialize_base, Handler)
 				Gui.open(player, second)
 				local body =
 					player.gui.screen["smart-quality-condenser-editor"]["smart-quality-condenser-tabs"]["content-3"]
-				local amount = body.scroll.rows["amount-1"]
+				Gui.on_gui_click({ player_index = player.index, element = body.scroll.grid["slot-1"] })
+				local stale = body["slot-editor"].fields.details.stock.amount
+				stale.text = "99"
+				Gui.on_settings_pasted({ source = c, destination = other })
+				Gui.on_gui_confirmed({ player_index = player.index, element = stale })
+				assert(
+					second.targets[1].count == 10 and body["slot-editor"]["error-label"].visible,
+					"A stale editor overwrote updated targets"
+				)
+				Gui.on_gui_click({ player_index = player.index, element = body.scroll.grid["slot-1"] })
+				local amount = body["slot-editor"].fields.details.stock.amount
 				amount.text = "17"
-				Gui.on_gui_text_changed({ player_index = player.index, element = amount })
+				Gui.on_gui_confirmed({ player_index = player.index, element = amount })
 				assert(
 					second.targets[1].count == 17 and storage.entry.targets[1].count == 10,
 					"Targets are shared between condensers"
@@ -238,6 +276,21 @@ return function(Smart, Gui, initialize_base, Handler)
 				player.cursor_stack.clear()
 				other.destroy()
 			end
+			if t == 150 and script.test_arg == "editor" then
+				result({
+					passed = true,
+					grid = true,
+					quality_badges = true,
+					count_overlay = true,
+					enter_and_confirm = true,
+					cancel_and_validation = true,
+					right_click_remove = true,
+					stale_edit_rejected = true,
+					per_condenser = true,
+				})
+				script.finish_test(true)
+			end
+
 			if t == 42000 then
 				assert(storage.removed, "In-progress removal was not exercised")
 				storage.rp.destroy()

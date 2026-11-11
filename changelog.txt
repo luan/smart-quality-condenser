@@ -1,4 +1,13 @@
 ---------------------------------------------------------------------------------------------------
+Version: 0.1.2
+Date: 2026-11-11
+  Features:
+    - Compact combinator-style target grid with item icons, quality badges, and stock amounts.
+    - Click a slot to edit it with the native item/quality picker; Enter confirms the amount.
+    - Right-click removes a target. Cancel and validation leave saved targets unchanged.
+  Changes:
+    - Existing per-condenser targets and logistics are preserved.
+---------------------------------------------------------------------------------------------------
 Version: 0.1.1
 Date: 2026-11-11
   Features:
