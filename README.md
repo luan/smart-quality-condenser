@@ -26,8 +26,6 @@ The configurable base quality, module slots, research bonuses, power consumption
 
 Disable **Quality condenser (forked)** when enabling this mod; they are alternative implementations and cannot run together. Existing condenser, item, recipe, startup-setting, and controller names are retained. The migration adopts existing inventories and rebuilds the previous fork's internal helpers, preserving machines, modules, contents, and blueprints. Existing ordinary condensers continue to work without a target controller.
 
-The private Smart Quality Condenser 0.1.x companion can be updated directly to this standalone version. Its existing target settings and internal inventories are preserved.
-
 ## Credits and license
 
 - Original Quality condenser: Patrick **Quezler** Mounier.
