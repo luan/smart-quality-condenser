@@ -2,20 +2,23 @@ local function snapshot()
 	local out = { machines = {}, boxes = {}, controllers = {}, buffers = {} }
 	for _, s in pairs(game.surfaces) do
 		for _, e in
-			pairs(
-				s.find_entities_filtered({
-					name = {
-						"quality-condenser-forked",
-						"quality-condenser-forked--container",
-						"smart-quality-condenser-targets",
-						"smart-quality-condenser-input",
-						"smart-quality-condenser-output",
-					},
-				})
-			)
+			pairs(s.find_entities_filtered({
+				name = {
+					"quality-condenser-forked",
+					"quality-condenser-forked--container",
+					"smart-quality-condenser-targets",
+					"smart-quality-condenser-input",
+					"smart-quality-condenser-output",
+				},
+			}))
 		do
-			local row =
-				{ unit = e.unit_number, name = e.name, position = e.position, surface = s.name, quality = e.quality.name }
+			local row = {
+				unit = e.unit_number,
+				name = e.name,
+				position = e.position,
+				surface = s.name,
+				quality = e.quality.name,
+			}
 			if e.name == "quality-condenser-forked" then
 				row.modules = e.get_module_inventory().get_contents()
 				out.machines[tostring(e.unit_number)] = row
