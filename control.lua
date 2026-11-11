@@ -4,6 +4,7 @@ mod_prefix = "quality-condenser-forked--"
 local Combinators = require("scripts.combinators")
 local Beacons = require("scripts.beacons")
 local Smart = require("scripts.smart-logistics")
+local TargetsGui = require("scripts.targets-gui")
 
 local function new_struct(table, struct)
   assert(struct.id, serpent.block(struct))
@@ -115,10 +116,12 @@ function Handler.refresh_gui_for_player(player)
 
     local tab1 = tabbed_pane.add{type="tab", caption="Modules"}
     local tab2 = tabbed_pane.add{type="tab", caption="Inventory"}
+    local tab3 = tabbed_pane.add{type="tab", caption={"sqc.targets"}}
     local label1 = tabbed_pane.add{type="empty-widget"}
     local label2 = tabbed_pane.add{type="empty-widget"}
     tabbed_pane.add_tab(tab1, label1)
     tabbed_pane.add_tab(tab2, label2)
+    tabbed_pane.add_tab(tab3, tabbed_pane.add{type="empty-widget"})
     tabbed_pane.selected_tab_index = 1
   end
 
@@ -137,10 +140,12 @@ function Handler.refresh_gui_for_player(player)
 
     local tab1 = tabbed_pane.add{type="tab", caption="Modules"}
     local tab2 = tabbed_pane.add{type="tab", caption="Inventory"}
+    local tab3 = tabbed_pane.add{type="tab", caption={"sqc.targets"}}
     local label1 = tabbed_pane.add{type="empty-widget"}
     local label2 = tabbed_pane.add{type="empty-widget"}
     tabbed_pane.add_tab(tab1, label1)
     tabbed_pane.add_tab(tab2, label2)
+    tabbed_pane.add_tab(tab3, tabbed_pane.add{type="empty-widget"})
     tabbed_pane.selected_tab_index = 2
   end
 end
@@ -183,6 +188,7 @@ local function initialize_base()
   Handler.refresh_gui_for_players()
 end
 script.on_init(function()
+  storage.entries = {}
   initialize_base()
   Smart.on_init()
 end)
@@ -197,6 +203,7 @@ local function update_quality(struct, bonus_quality)
 end
 
 script.on_configuration_changed(function(data)
+  storage.entries = storage.entries or {}
   if not storage.structs then initialize_base() end
   if 3 > (storage.version or 0) then
     error("not compatible with quality-condenser-forked <= 2.1.0, remove the mod, save your world, then update the mod.")
@@ -213,6 +220,7 @@ script.on_configuration_changed(function(data)
 
   Handler.refresh_gui_for_players()
   Smart.on_configuration_changed()
+  TargetsGui.reset()
 end)
 
 function Handler.on_created_entity(event)
@@ -285,6 +293,7 @@ function Handler.on_created_entity(event)
 
   Combinators.create_for_struct(struct)
   reset_offering_2(struct)
+  Smart.on_created_entity(event)
 end
 
 for _, event in ipairs({
@@ -389,6 +398,16 @@ script.on_event(defines.events.on_research_finished, on_research_toggled)
 script.on_event(defines.events.on_research_reversed, on_research_toggled)
 
 script.on_event(defines.events.on_gui_selected_tab_changed, function(event)
+  if event.element.name == mod_prefix .. "tabbed-pane-modules" or event.element.name == mod_prefix .. "tabbed-pane-inventory" then
+    if event.element.selected_tab_index == 3 then
+      local player=game.get_player(event.player_index)
+      local entry=Smart.get(player.opened)
+      if entry then TargetsGui.open(player,entry) end
+      event.element.selected_tab_index = event.element.name == mod_prefix .. "tabbed-pane-modules" and 1 or 2
+      return
+    end
+  end
+  TargetsGui.on_gui_selected_tab_changed(event)
   if event.element.name == mod_prefix .. "tabbed-pane-modules" then
     if event.element.selected_tab_index == 1 then return end
     event.element.selected_tab_index = 1
@@ -418,15 +437,19 @@ script.on_event(defines.events.on_gui_selected_tab_changed, function(event)
   end
 end)
 
--- Beacons can be built, mined, cloned or refilled with modules without raising an event this mod
--- listens to, so the foreign part of a machine's effects is refreshed once per second instead of
--- polling every tick (Beacons.update returns immediately when nothing changed).
-script.on_nth_tick(60, function(event)
-  if event.tick == 0 then return end -- nth tick handlers also run on tick 0
-
-  for _, struct in pairs(storage.structs) do
-    Beacons.update(struct)
-  end
-end)
-
 script.on_nth_tick(15, Smart.on_tick)
+
+script.on_event(defines.events.on_gui_opened, TargetsGui.on_gui_opened)
+script.on_event(defines.events.on_gui_closed, TargetsGui.on_gui_closed)
+script.on_event(defines.events.on_gui_click, TargetsGui.on_gui_click)
+script.on_event(defines.events.on_gui_elem_changed, TargetsGui.on_gui_elem_changed)
+script.on_event(defines.events.on_gui_text_changed, TargetsGui.on_gui_text_changed)
+script.on_event(defines.events.on_gui_checked_state_changed, TargetsGui.on_gui_checked_state_changed)
+script.on_event(defines.events.on_player_setup_blueprint, TargetsGui.on_blueprint)
+script.on_event(defines.events.on_entity_settings_pasted, TargetsGui.on_settings_pasted)
+script.on_nth_tick(60, function(event)
+  if event.tick ~= 0 then
+    for _, struct in pairs(storage.structs) do Beacons.update(struct) end
+  end
+  TargetsGui.on_tick()
+end)

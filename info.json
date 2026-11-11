@@ -1,8 +1,8 @@
 {
 	"name": "smart-quality-condenser",
 	"title": "Smart Quality Condenser",
-	"description": "Standalone quality condenser fork with automatic robot logistics and one target combinator. Multiple items and qualities, actual inventory accounting, and save-compatible migration from Quality condenser (forked).",
-	"version": "0.1.0",
+	"description": "Standalone quality condenser fork with automatic robot logistics and built-in per-machine stock targets. Multiple items and qualities, actual inventory accounting, and save-compatible migration from Quality condenser (forked).",
+	"version": "0.1.1",
 	"author": "Luan, doanbalat, Quezler",
 	"factorio_version": "2.1",
 	"quality_required": true,

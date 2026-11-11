@@ -2,13 +2,16 @@ local targets = table.deepcopy(data.raw["constant-combinator"]["constant-combina
 targets.name = "smart-quality-condenser-targets"
 targets.minable = { mining_time = 0.1, result = targets.name }
 targets.item_slot_count = 1000
+targets.hidden = true
 local item = table.deepcopy(data.raw.item["constant-combinator"])
 item.name = targets.name
 item.place_result = targets.name
+item.hidden = true
 local recipe = {
 	type = "recipe",
 	name = targets.name,
-	enabled = true,
+	enabled = false,
+	hidden = true,
 	energy_required = 0.5,
 	ingredients = {
 		{ type = "item", name = "constant-combinator", amount = 1 },

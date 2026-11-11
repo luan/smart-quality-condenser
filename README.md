@@ -4,17 +4,21 @@ A standalone fork of [Quality condenser (forked)](https://mods.factorio.com/mod/
 
 ## Use
 
-1. Research and build a quality condenser. Add quality modules and power.
-2. Craft **Condenser targets** and place it within 10 tiles of the machine, inside roboport logistic coverage.
-3. Set item signals at the qualities and amounts to keep available in your logistic network.
+1. Research and build a quality condenser. Add quality modules and power, and place it inside roboport logistic coverage.
+2. Open the condenser and select its **Targets** tab.
+3. Click **Add target**, choose an item and its desired quality, and enter the **Stock to keep**. Choosing an upgraded quality enables **Automatic logistics**.
 
-For example, set rare beacons to 50, rare speed modules to 50, and uncommon gears to 100. Robots supply lower-quality items and collect finished products. Different items and different target qualities can run together, including multiple qualities of the same item.
+For example, set rare beacons to 50, rare speed modules to 50, and uncommon gears to 100. Robots supply lower-quality items and collect finished products. Different items and target qualities run together, including multiple qualities of the same item. Each condenser has its own targets.
 
-There are no external chests, inserters, or circuit wires to configure. The controller contains a requester and an active-provider buffer; stacks move internally between those buffers and the machine. All deliveries to and from the factory use native logistic robots. Controller demand comes from actual inventories and robot reservations rather than saved running counters.
+The stock target is the amount available in that logistic network, not a lifetime production count. Taking items from storage creates demand again. Lower-quality inputs must be available to robots in provider, storage, or eligible buffer chests; the mod does not pull from belts or ordinary chests. Make room in logistic storage for finished items.
 
-Higher available input qualities are used first. Requests remain visible when lower-quality stock is unavailable. Fulfilled or removed targets stop requesting, and leftovers return at their current quality. A full output pauses the machine to protect finished items. Only one target controller can own a machine.
+No external combinators, chests, inserters, or circuit wires are needed. The condenser owns hidden requester and active-provider buffers. Stacks move internally between those buffers and the machine; native logistic robots handle factory deliveries. Demand comes from actual inventories and robot reservations rather than saved running counters.
 
-The controller costs one constant combinator, one requester chest, and one active provider chest. The included `blueprint.txt` places a condenser, target controller, substation, and roboport; supply power and robots, then set your targets.
+Higher available input qualities are used first. Requests remain visible when lower-quality stock is unavailable. Fulfilled or removed targets stop requesting, and leftovers return at their current quality. A full output pauses the machine to protect finished items. Turn **Automatic logistics** off to stop requests and use the condenser manually.
+
+Targets are saved with the world, copied by blueprints and cloning, and can be copied between condensers with the standard copy/paste settings controls. The included `blueprint.txt` places a condenser, substation, and roboport. Supply power and robots, then set targets in the condenser.
+
+Upgrading from 0.1.0 automatically moves target-combinator settings into the paired condenser, preserves its inventories and buffers, removes the old combinator, and refunds its three ingredients through the output buffer. The retired controller recipe is hidden; old blueprints containing it are still adopted when built near a condenser.
 
 ## Upgrade rules
 
@@ -24,7 +28,7 @@ The configurable base quality, module slots, research bonuses, power consumption
 
 ## Existing saves
 
-Disable **Quality condenser (forked)** when enabling this mod; they are alternative implementations and cannot run together. Existing condenser, item, recipe, startup-setting, and controller names are retained. The migration adopts existing inventories and rebuilds the previous fork's internal helpers, preserving machines, modules, contents, and blueprints. Existing ordinary condensers continue to work without a target controller.
+Disable **Quality condenser (forked)** when enabling this mod; they are alternative implementations and cannot run together. Existing condenser, item, recipe, startup-setting, and legacy controller names are retained. The migration adopts existing inventories and rebuilds the previous fork's internal helpers, preserving machines, modules, contents, and blueprints. Existing ordinary condensers continue to work without a target controller.
 
 ## Credits and license
 

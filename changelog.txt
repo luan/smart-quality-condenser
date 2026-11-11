@@ -1,4 +1,14 @@
 ---------------------------------------------------------------------------------------------------
+Version: 0.1.1
+Date: 2026-11-11
+  Features:
+    - Each condenser has a built-in Targets tab for item, quality, and stock targets.
+    - Targets follow blueprints, cloning, and settings copy/paste.
+  Changes:
+    - Automatic logistics and both robot buffers now belong directly to each condenser.
+    - Existing target combinators migrate automatically and refund their ingredients.
+    - New condensers remain available for manual use until automatic logistics is enabled.
+---------------------------------------------------------------------------------------------------
 Version: 0.1.0
 Date: 2026-11-10
   Features:

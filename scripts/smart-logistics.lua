@@ -1,4 +1,5 @@
 local plan = require("scripts.smart-plan")
+local copy = require("util").copy
 local CONTROLLER = "smart-quality-condenser-targets"
 local CONDENSER = "quality-condenser-forked"
 local CONTAINER = CONDENSER .. "--container"
@@ -15,10 +16,6 @@ local function inventory(entity)
 end
 local function split(k)
 	return k:match("^(.-)%z(.*)$")
-end
-local function status(entity, message, bad)
-	entity.custom_status =
-		{ diode = bad and defines.entity_status_diode.red or defines.entity_status_diode.green, label = message }
 end
 -- Transfer the actual stacks only between the machine and its colocated logistics buffers.
 local function move(source, destination, amounts)
@@ -73,36 +70,13 @@ local function release(entry)
 	spill(entry.input)
 	spill(entry.output)
 end
-local function pair(controller, used)
-	local candidates = controller.surface.find_entities_filtered({
-		name = CONDENSER,
-		position = controller.position,
-		radius = 10,
-		force = controller.force,
-	})
-	table.sort(candidates, function(a, b)
-		local function distance(e)
-			return (e.position.x - controller.position.x) ^ 2 + (e.position.y - controller.position.y) ^ 2
-		end
-		local da, db = distance(a), distance(b)
-		return da < db or (da == db and a.unit_number < b.unit_number)
-	end)
-	local condenser = candidates[1]
-	if not condenser then
-		status(controller, "Place within 10 tiles of a quality condenser", true)
-		return
-	end
-	if used[condenser.unit_number] then
-		status(controller, "This condenser already has a target combinator", true)
-		return
-	end
+local function create_entry(condenser)
 	local box =
 		condenser.surface.find_entities_filtered({ name = CONTAINER, position = condenser.position, limit = 1 })[1]
 	if not box then
-		status(controller, "Waiting for the condenser inventory", true)
 		return
 	end
-	local entry = { controller = controller, condenser = condenser, box = box }
+	local entry = { condenser = condenser, box = box, targets = {}, enabled = false }
 	for _, kind in ipairs({ "input", "output" }) do
 		entry[kind] = condenser.surface.create_entity({
 			name = "smart-quality-condenser-" .. kind,
@@ -118,85 +92,137 @@ local function pair(controller, used)
 		point.remove_section(1)
 	end
 	point.add_section()
-	used[condenser.unit_number] = true
 	return entry
 end
+local function legacy_settings(controller)
+	local targets = {}
+	for _, section in pairs(controller.get_control_behavior().sections) do
+		if section.active then
+			for _, filter in pairs(section.filters) do
+				local v = filter.value
+				if v and (v.type or "item") == "item" then
+					targets[#targets + 1] = {
+						item = { name = v.name, quality = v.quality or "normal" },
+						count = math.floor((filter.min or 0) * section.multiplier),
+					}
+				end
+			end
+		end
+	end
+	return targets, controller.get_control_behavior().enabled
+end
+local function adopt(controller, entries)
+	local candidates = controller.surface.find_entities_filtered({
+		name = CONDENSER,
+		position = controller.position,
+		radius = 10,
+		force = controller.force,
+	})
+	table.sort(candidates, function(a, b)
+		local function distance(e)
+			return (e.position.x - controller.position.x) ^ 2 + (e.position.y - controller.position.y) ^ 2
+		end
+		local da, db = distance(a), distance(b)
+		return da < db or (da == db and a.unit_number < b.unit_number)
+	end)
+	local condenser = candidates[1]
+	local entry = condenser and entries[condenser.unit_number]
+	if not entry then
+		return
+	end
+	local targets, enabled = legacy_settings(controller)
+	for _, target in ipairs(targets) do
+		entry.targets[#entry.targets + 1] = target
+	end
+	entry.enabled = entry.enabled or enabled
+	-- Refund the retired controller's ingredients through its native provider buffer.
+	for _, name in ipairs({ "constant-combinator", "requester-chest", "active-provider-chest" }) do
+		local stack = { name = name, quality = controller.quality.name, count = 1 }
+		stack.count = stack.count - inventory(entry.output).insert(stack)
+		if stack.count > 0 then
+			controller.surface.spill_item_stack({
+				position = controller.position,
+				stack = stack,
+				force = controller.force,
+				allow_belts = false,
+			})
+		end
+	end
+	controller.destroy()
+end
 local function rescan()
-	local entries, used = storage.entries, {}
+	local entries = storage.entries
 	for id, entry in pairs(entries) do
-		if
-			not entry.controller.valid
-			or not entry.condenser.valid
-			or not entry.box.valid
-			or not entry.input.valid
-			or not entry.output.valid
-		then
+		if not entry.condenser.valid or not entry.box.valid or not entry.input.valid or not entry.output.valid then
 			release(entry)
 			entries[id] = nil
-		else
-			used[entry.condenser.unit_number] = true
 		end
 	end
-	local controllers = {}
 	for _, surface in pairs(game.surfaces) do
-		for _, controller in pairs(surface.find_entities_filtered({ name = CONTROLLER })) do
-			controllers[#controllers + 1] = controller
+		for _, condenser in pairs(surface.find_entities_filtered({ name = CONDENSER })) do
+			if not entries[condenser.unit_number] then
+				entries[condenser.unit_number] = create_entry(condenser)
+			end
 		end
-	end
-	table.sort(controllers, function(a, b)
-		return a.unit_number < b.unit_number
-	end)
-	for _, controller in ipairs(controllers) do
-		if not entries[controller.unit_number] then
-			entries[controller.unit_number] = pair(controller, used)
+		local controllers = surface.find_entities_filtered({ name = CONTROLLER })
+		table.sort(controllers, function(a, b)
+			return a.unit_number < b.unit_number
+		end)
+		for _, controller in ipairs(controllers) do
+			adopt(controller, entries)
 		end
 	end
 end
-local function settings(controller)
+local function settings(entry)
 	local qualities, unlocked = {}, {}
 	local q = prototypes.quality.normal
 	while q do
-		if controller.force.is_quality_unlocked(q.name) then
+		if entry.condenser.force.is_quality_unlocked(q.name) then
 			qualities[#qualities + 1] = q.name
 			unlocked[q.name] = true
 		end
 		q = q.next
 	end
 	local targets, ignored = {}, 0
-	local cb = controller.get_control_behavior()
-	if cb.enabled then
-		for _, section in pairs(cb.sections) do
-			if section.active then
-				for _, filter in pairs(section.filters) do
-					local v = filter.value
-					local amount = math.floor((filter.min or 0) * section.multiplier)
-					if v and amount > 0 then
-						if
-							(v.type or "item") == "item"
-							and v.quality ~= "normal"
-							and unlocked[v.quality or "normal"]
-							and prototypes.item[v.name]
-						then
-							targets[v.name] = targets[v.name] or {}
-							targets[v.name][v.quality] = (targets[v.name][v.quality] or 0) + amount
-						else
-							ignored = ignored + 1
-						end
-					end
+	if entry.enabled then
+		for _, target in ipairs(entry.targets) do
+			local v = target.item
+			local amount = math.floor(target.count or 0)
+			if v and amount > 0 then
+				if v.quality ~= "normal" and unlocked[v.quality] and prototypes.item[v.name] then
+					targets[v.name] = targets[v.name] or {}
+					targets[v.name][v.quality] = (targets[v.name][v.quality] or 0) + amount
+				else
+					ignored = ignored + 1
 				end
 			end
 		end
 	end
 	return targets, qualities, ignored
 end
+local function set_status(entry, message, bad)
+	entry.status = message
+	entry.status_bad = bad
+end
 local function update(entry)
-	local controller, condenser = entry.controller, entry.condenser
+	local condenser = entry.condenser
 	local point = entry.input.get_logistic_point(defines.logistic_member_index.logistic_container)
 	local net = point.logistic_network
 	if net and not net.valid then
 		net = nil
 	end
-	local targets, qualities, ignored = settings(controller)
+	if not entry.enabled then
+		for _, section in pairs(point.sections) do
+			section.filters = {}
+		end
+		if entry.paused and not condenser.custom_status then
+			condenser.disabled_by_script = false
+		end
+		entry.paused = nil
+		set_status(entry, "Automatic logistics off", false)
+		return
+	end
+	local targets, qualities, ignored = settings(entry)
 	local inside, input, output = inventory(entry.box), inventory(entry.input), inventory(entry.output)
 	local function compute()
 		return plan.make(
@@ -268,7 +294,7 @@ local function update(entry)
 		section.filters = chunk
 	end
 	if not net then
-		status(controller, "No logistic network: add roboport coverage", true)
+		set_status(entry, "No logistic network: add roboport coverage", true)
 		return
 	end
 	local message = blocked and "Output full: make room in logistic storage"
@@ -279,15 +305,92 @@ local function update(entry)
 	if ignored > 0 then
 		message = message .. " · " .. ignored .. " invalid or locked targets ignored"
 	end
-	status(controller, message, blocked)
+	set_status(entry, message, blocked)
 end
 local M = {}
+function M.get(entity)
+	if not entity or not entity.valid then
+		return
+	end
+	if entity.name == CONTAINER then
+		entity = entity.surface.find_entities_filtered({
+			name = CONDENSER,
+			position = entity.position,
+			force = entity.force,
+			limit = 1,
+		})[1]
+	end
+	if not entity or entity.name ~= CONDENSER then
+		return
+	end
+	local entry = storage.entries[entity.unit_number]
+	if not entry then
+		entry = create_entry(entity)
+		storage.entries[entity.unit_number] = entry
+	end
+	return entry
+end
+function M.config(entry)
+	return { targets = copy(entry.targets), enabled = entry.enabled }
+end
+function M.apply(entry, config)
+	if not entry or type(config) ~= "table" then
+		return
+	end
+	local targets = {}
+	for _, target in ipairs(config.targets or {}) do
+		local item = target.item
+		if item and prototypes.item[item.name] and prototypes.quality[item.quality or "normal"] then
+			targets[#targets + 1] = {
+				item = { name = item.name, quality = item.quality or "normal" },
+				count = math.max(0, math.min(2147483647, math.floor(tonumber(target.count) or 0))),
+			}
+		end
+	end
+	entry.targets = targets
+	entry.enabled = config.enabled == true
+end
+function M.on_created_entity(event)
+	local entity = event.entity or event.destination
+	if entity.name ~= CONDENSER then
+		return
+	end
+	local entry = M.get(entity)
+	local config = event.tags and event.tags.smart_quality_condenser
+	if event.source then
+		local source = M.get(event.source)
+		if source then
+			config = M.config(source)
+		end
+	end
+	if config then
+		M.apply(entry, config)
+	end
+end
 function M.on_init()
-	storage.entries = {}
+	storage.entries = storage.entries or {}
 	rescan()
 end
 function M.on_configuration_changed()
-	storage.entries = storage.entries or {}
+	local entries = {}
+	for _, entry in pairs(storage.entries or {}) do
+		if entry.condenser.valid then
+			if entry.controller and entry.controller.valid then
+				entry.targets, entry.enabled = legacy_settings(entry.controller)
+				-- rescan retires the controller; its targets have already been copied.
+				for _, section in pairs(entry.controller.get_control_behavior().sections) do
+					section.filters = {}
+				end
+			end
+			entry.controller = nil
+			entry.targets = entry.targets or {}
+			entry.enabled = entry.enabled or false
+			entries[entry.condenser.unit_number] = entry
+		else
+			release(entry)
+		end
+	end
+	storage.entries = entries
 	rescan()
 end
 function M.on_tick(event)
@@ -295,16 +398,9 @@ function M.on_tick(event)
 		rescan()
 	end
 	for _, entry in pairs(storage.entries) do
-		if
-			entry.controller.valid
-			and entry.condenser.valid
-			and entry.box.valid
-			and entry.input.valid
-			and entry.output.valid
-		then
+		if entry.condenser.valid and entry.box.valid and entry.input.valid and entry.output.valid then
 			update(entry)
 		end
 	end
 end
-
 return M
