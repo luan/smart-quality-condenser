@@ -1,0 +1,8 @@
+{
+	"name": "smart-quality-condenser-qa",
+	"version": "0.1.0",
+	"title": "Smart condenser native QA",
+	"author": "Luan",
+	"factorio_version": "2.1",
+	"dependencies": ["smart-quality-condenser", "space-age"]
+}

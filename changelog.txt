@@ -1,0 +1,32 @@
+---------------------------------------------------------------------------------------------------
+Version: 1.0.0
+Date: 2026-11-10
+  Features:
+    - Standalone fork of Quality condenser (forked), with smart logistic stock targets.
+    - Native robots supply lower-quality inputs and collect finished items through internal buffers.
+    - Supports many items and multiple quality targets for the same item without circuit counters.
+  Changes:
+    - Retains existing condenser, controller, item, recipe and setting names for save compatibility.
+    - Adopts existing inventories and rebuilds script-owned helpers when replacing the previous fork.
+  Credits:
+    - Original quality condenser by Quezler, previous fork by doanbalat, graphics by Hurricane046.
+---------------------------------------------------------------------------------------------------
+Version: 2.1.3
+Date: 26. 09. 2026
+  Features:
+    - New startup setting "Beacon boosts": allow = beacons may speed the condenser up but cost extra
+      power, ignore = beacons have no effect at all, disable = the condenser pauses while boosted.
+    - New startup setting "Beacon power multiplier": scales that extra power, 0 = only the vanilla
+      cost the beacon's own modules already apply.
+  Bugfixes:
+    - Fixed the condenser going to sleep and doing nothing next to a speed beacon.
+    - Fixed beacons' speed modules lowering the condenser's quality.
+    - Fixed beacons that do carry quality (like the beacon-interface one) no longer boosting the
+      condenser's upgrade chance.
+    - Fixed the condenser being disabled by mods that limit how many beacons may reach a machine
+      (e.g. Beacon Rebalance 2's overload rule), which counted the hidden beacon the condenser used
+      to place on itself, so a single real beacon already looked like two.
+  Info:
+    - A blocked condenser shows the "Blocked: beacon boost" status. Startup settings need a restart.
+    - A condenser showing "No quality: needs quality modules" has no quality source at all, note that
+      a vanilla beacon cannot carry quality, only the beacon-interface one can.

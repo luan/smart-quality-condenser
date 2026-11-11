@@ -1,0 +1,8 @@
+{
+	"name": "smart-condenser-fork-migration-qa",
+	"version": "0.1.0",
+	"title": "Fork migration QA",
+	"author": "Luan",
+	"factorio_version": "2.1",
+	"dependencies": ["smart-quality-condenser"]
+}

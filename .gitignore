@@ -1,1 +1,6 @@
 /beacon-interface_1.1.2/
+
+/.data/
+/dist/
+/__pycache__/
+.env

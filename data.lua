@@ -35,6 +35,16 @@ local crafter_entity = {
 
   module_slots = module_slots,
   allowed_effects = {"consumption", "speed", "pollution", "quality"},
+  -- "ignore" keeps beacons from reaching the machine at all, which can only be decided here.
+  -- The condenser's own quality is read from its beacon-interface tile and its modules directly,
+  -- so it does not need beacon effects for anything else.
+  effect_receiver =
+  {
+    uses_module_effects = true,
+    uses_beacon_effects = settings.startup[mod_prefix .. "beacon-boost"].value ~= "ignore",
+    uses_surface_effects = true,
+    uses_local_effects = true,
+  },
 
   crafting_speed = 1,
   energy_source =
@@ -181,6 +191,8 @@ require("prototypes.recipe")
 
 local beacon_interface = table.deepcopy(data.raw["beacon"]["beacon-interface--beacon-tile"])
 beacon_interface.name = mod_prefix .. "beacon-interface"
+-- Only kept so saves that still contain this hidden beacon (it used to carry the quality of every
+-- condenser) can be loaded; the control stage deletes the leftovers and does not create new ones.
 data:extend{beacon_interface}
 
 data.raw["gui-style"]["default"].quality_condenser_tabbed_pane =
@@ -193,3 +205,5 @@ data.raw["gui-style"]["default"].quality_condenser_tabbed_pane =
     parent = "invisible_frame", -- https://discord.com/channels/139677590393716737/1217401074877599745/1339208959512543324
   }
 }
+
+require("prototypes.smart-logistics")

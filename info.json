@@ -1,29 +1,25 @@
 {
-    "name": "quality-condenser-forked",
-    "title": "Quality condenser (forked)",
-    "description": "A recycler that returns the items themselves but a quality higher, success depends on quality modules.",
-
-    "version": "2.1.2",
-    "author": "doanbalat",
-    "factorio_version": "2.1",
-
-    "quality_required": true,
-    "rail_bridges_required": false,
-    "space_travel_required": false,
-    "spoiling_required": false,
-    "freezing_required": false,
-    "segmented_units_required": false,
-    "expansion_shaders_required": false,
-
-    "dependencies": [
-
-        "base >= 2.1.7",
-        "? quality",
-        "? space-age",
-
-        "beacon-interface",
-
-        "(?) QualityPlus",
-        "! quality-condenser"
-    ]
+	"name": "smart-quality-condenser",
+	"title": "Smart Quality Condenser",
+	"description": "Standalone quality condenser fork with automatic robot logistics and one target combinator. Multiple items and qualities, actual inventory accounting, and save-compatible migration from Quality condenser (forked).",
+	"version": "1.0.0",
+	"author": "Luan, doanbalat, Quezler",
+	"factorio_version": "2.1",
+	"quality_required": true,
+	"rail_bridges_required": false,
+	"space_travel_required": false,
+	"spoiling_required": false,
+	"freezing_required": false,
+	"segmented_units_required": false,
+	"expansion_shaders_required": false,
+	"dependencies": [
+		"base >= 2.1.24",
+		"? quality",
+		"? space-age",
+		"beacon-interface",
+		"(?) QualityPlus",
+		"! quality-condenser",
+		"! quality-condenser-forked"
+	],
+	"homepage": "https://github.com/luan/smart-quality-condenser"
 }

@@ -36,11 +36,43 @@ local function get_spoil_percentage(inventory, item)
   return spoil_percentage
 end
 
-local function condensed_nothing(struct)
+-- Only the quality the machine is *meant* to have counts: the quality the condenser is configured
+-- for (base quality setting + technology bonuses) and the modules the player inserted into the
+-- machine itself. Reading `struct.entity.effects["quality"]` instead would also include the effects
+-- of every beacon in range, and since speed modules carry a negative quality (-2.5% for a speed
+-- module 3) a bunch of speed beacons next to the condenser would subtract their quality from ours.
+-- Once the sum reached zero the machine paused itself ("disabled"), which made it look broken next
+-- to any speed beacon.
+local function get_quality_effect(struct)
+  local quality = struct.quality or 0
+
+  -- the quality modules inside the condenser, at their own quality (the engine scales them for us).
+  local module_inventory = struct.entity.get_module_inventory()
+  if module_inventory then
+    for slot = 1, #module_inventory do
+      local stack = module_inventory[slot]
+      if stack.valid_for_read then
+        local module = prototypes.item[stack.name]
+        if module and module.module_effects then
+          local module_effects = module.get_module_effects(stack.quality)
+          quality = quality + (module_effects.quality or 0) * stack.count
+        end
+      end
+    end
+  end
+
+  -- Safety net: never sleep while the machine's effect receiver still reports quality, it may come
+  -- from a module this helper cannot read or from a beacon that does carry quality.
+  quality = math.max(quality, (struct.entity.effects or {}).quality or 0)
+
+  return quality * 1000
+end
+
+local function condensed_nothing(struct, status_label)
   struct.entity.disabled_by_script = true
   struct.entity.custom_status = {
     diode = defines.entity_status_diode.yellow,
-    label = {"entity-status.sleeping"},
+    label = {status_label or "entity-status.sleeping"},
   }
   reset_offering_1(struct)
 end
@@ -48,8 +80,10 @@ end
 helpers.write_file("quality-condenser.log", "", false, nil)
 
 function Condense.trigger(struct)
-  local quality_effect = (struct.entity.effects["quality"] or 0) * 1000
-  if 0 >= quality_effect then return condensed_nothing(struct) end
+  local quality_effect = get_quality_effect(struct)
+  if 0 >= quality_effect then
+    return condensed_nothing(struct, "entity-status." .. mod_prefix .. "no-quality")
+  end
 
   local condensed_anything = false
   local old_item_count = struct.container_inventory.get_item_count()

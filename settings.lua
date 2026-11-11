@@ -27,4 +27,19 @@ data:extend({
     setting_type = "startup", order = "d",
     default_value = "2.5MW",
   },
+  {
+    type = "string-setting",
+    name = mod_prefix .. "beacon-boost",
+    setting_type = "startup", order = "e",
+    default_value = "allow",
+    allowed_values = {"allow", "ignore", "disable"},
+  },
+  {
+    type = "double-setting",
+    name = mod_prefix .. "beacon-power-multiplier",
+    setting_type = "startup", order = "f",
+    default_value = 1,
+    minimum_value = 0,
+    maximum_value = 100,
+  },
 })

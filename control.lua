@@ -2,6 +2,8 @@ require("shared")
 mod_prefix = "quality-condenser-forked--"
 
 local Combinators = require("scripts.combinators")
+local Beacons = require("scripts.beacons")
+local Smart = require("scripts.smart-logistics")
 
 local function new_struct(table, struct)
   assert(struct.id, serpent.block(struct))
@@ -70,6 +72,10 @@ for _, technology in pairs(prototypes.technology) do
   end
 end
 log("technology_changes_quality = " .. serpent.block(technology_changes_quality))
+log(string.format("[%s] beacon boost mode: %s, power multiplier: %s",
+  mod_name,
+  settings.startup[mod_prefix .. "beacon-boost"].value,
+  settings.startup[mod_prefix .. "beacon-power-multiplier"].value))
 
 local function get_bonus_quality(force)
   if table_size(technology_changes_quality) == 0 then return 0 end
@@ -89,7 +95,7 @@ local Handler = {}
 
 function Handler.refresh_gui_for_player(player)
   for _, relative_gui in ipairs(player.gui.relative.children) do
-    if relative_gui.get_mod() == mod_name then
+    if relative_gui.name == mod_prefix .. "tabbed-pane-modules" or relative_gui.name == mod_prefix .. "tabbed-pane-inventory" then
       relative_gui.destroy()
     end
   end
@@ -150,54 +156,64 @@ script.on_event(defines.events.on_player_created, function(event)
   Handler.refresh_gui_for_player(player)
 end)
 
-script.on_init(function()
+-- Prototype names stay compatible with the previous fork; script-owned helpers are rebuilt.
+local function initialize_base()
   storage.version = 3
-
-  storage.surface = game.planets["quality-condenser-forked"].create_surface()
+  storage.surface = game.planets[mod_name].create_surface()
   storage.surface.generate_with_lab_tiles = true
-
+  for _, entity in pairs(storage.surface.find_entities_filtered{force="neutral"}) do
+    if entity.name == "proxy-container" or entity.name == "arithmetic-combinator" or entity.name == "inserter" or entity.name == "item-on-ground" or entity.name == "electric-energy-interface" then
+      entity.destroy()
+    end
+  end
   storage.surface.create_global_electric_network()
-  storage.surface.create_entity{
-    name = "electric-energy-interface",
-    force = "neutral",
-    position = {-1, -1},
-  }
-
+  storage.surface.create_entity{name="electric-energy-interface",force="neutral",position={-1,-1}}
   storage.invalid = game.create_inventory(0)
   storage.invalid.destroy()
-
-  storage.index = 0
-  storage.structs = {}
-  storage.deathrattles = {}
-
+  storage.index, storage.structs, storage.deathrattles = 0, {}, {}
+  local machines = {}
+  for _, surface in pairs(game.surfaces) do
+    for _, entity in pairs(surface.find_entities_filtered{name=mod_name}) do machines[#machines+1]=entity end
+  end
+  table.sort(machines,function(a,b) return a.unit_number<b.unit_number end)
+  for _, entity in ipairs(machines) do
+    local box=entity.surface.find_entities_filtered{name=mod_prefix.."container",position=entity.position,limit=1}[1]
+    Handler.on_created_entity{entity=entity,existing_container=box}
+  end
   Handler.refresh_gui_for_players()
+end
+script.on_init(function()
+  initialize_base()
+  Smart.on_init()
 end)
 
-local function update_beacon_interface(struct, bonus_quality)
-  remote.call("beacon-interface", "set_effects", struct.beacon_interface.unit_number, {
-    speed = 0,
-    productivity = 0,
-    consumption = 0,
-    pollution = 0,
-    -- beacon-interface 2.1 expects the quality effect as a percentage (0-100), while our
-    -- helpers still return it in the old 2.0 scale of 0-1000 (percentage * 10), so divide by 10.
-    quality = (get_base_quality(struct.entity.quality) + (bonus_quality or get_bonus_quality(struct.entity.force))) / 10,
-  })
+local function update_quality(struct, bonus_quality)
+  -- The quality the condenser is configured for: the base quality setting plus technology bonuses.
+  -- It used to be handed to the machine by a hidden beacon-interface tile placed on it, but mods
+  -- that limit how many beacons may reach a machine (Beacon Rebalance 2's overload rule) counted
+  -- that hidden beacon and disabled the machine as soon as one real beacon was built next to it,
+  -- so it now goes through LuaEntity::local_effect (scripts/beacons.lua).
+  Beacons.set_quality(struct, (get_base_quality(struct.entity.quality) + (bonus_quality or get_bonus_quality(struct.entity.force))) / 1000)
 end
 
 script.on_configuration_changed(function(data)
+  if not storage.structs then initialize_base() end
   if 3 > (storage.version or 0) then
     error("not compatible with quality-condenser-forked <= 2.1.0, remove the mod, save your world, then update the mod.")
   end
 
   for _, struct in pairs(storage.structs) do
-    update_beacon_interface(struct)
+    if struct.beacon_interface and struct.beacon_interface.valid then
+      -- older versions put a hidden beacon on the machine, remove those leftovers
+      struct.beacon_interface.destroy()
+    end
+    struct.beacon_interface = nil
+    update_quality(struct)
   end
 
   Handler.refresh_gui_for_players()
+  Smart.on_configuration_changed()
 end)
-
-local allow_beacon_interface_creation = false
 
 function Handler.on_created_entity(event)
   local entity = event.entity or event.destination
@@ -207,10 +223,9 @@ function Handler.on_created_entity(event)
     spill_entity_inventory(entity, defines.inventory.chest)
     entity.destroy()
     return
+  -- this mod does not use the beacon-interface anymore, only leftovers of old saves exist
   elseif entity.name == mod_prefix .. "beacon-interface" then
-    if allow_beacon_interface_creation == false then
-      entity.destroy()
-    end
+    entity.destroy()
     return
   end
 
@@ -220,6 +235,10 @@ function Handler.on_created_entity(event)
     entity = entity,
 
     beacon_interface = nil,
+    quality = nil,
+    beacon_speed = nil,
+    beacon_consumption = nil,
+    beacon_blocked = nil,
     container = nil,
     container_inventory = nil,
     proxy_container_a = nil,
@@ -233,16 +252,7 @@ function Handler.on_created_entity(event)
   })
   storage.index = storage.index + 1
 
-  allow_beacon_interface_creation = true
-  struct.beacon_interface = entity.surface.create_entity{
-    name = mod_prefix .. "beacon-interface",
-    force = entity.force,
-    position = entity.position,
-    raise_built = true,
-  }
-  allow_beacon_interface_creation = false
-  struct.beacon_interface.destructible = false
-  update_beacon_interface(struct)
+  update_quality(struct)
 
   local other_quality_container = entity.surface.find_entities_filtered{
     name = mod_prefix .. "container",
@@ -251,7 +261,7 @@ function Handler.on_created_entity(event)
     limit = 1,
   }[1]
 
-  struct.container = entity.surface.create_entity{
+  struct.container = event.existing_container or entity.surface.create_entity{
     name = mod_prefix .. "container",
     force = entity.force,
     position = entity.position,
@@ -260,7 +270,7 @@ function Handler.on_created_entity(event)
   struct.container.destructible = false
   struct.container_inventory = struct.container.get_inventory(defines.inventory.chest)
 
-  if other_quality_container then
+  if other_quality_container and other_quality_container ~= struct.container then
     local other_quality_container_inventory = other_quality_container.get_inventory(defines.inventory.chest)
     for slot = 1, #other_quality_container_inventory do
       local stack = other_quality_container_inventory[slot]
@@ -298,6 +308,7 @@ local deathrattles = {
   ["offering-1"] = function (deathrattle)
     local struct = storage.structs[deathrattle[2]]
     if struct and struct.entity.valid then
+      if Beacons.is_blocked(struct) then return end
       struct.entity.custom_status = nil
       struct.entity.disabled_by_script = false
     end
@@ -314,7 +325,9 @@ local deathrattles = {
     if struct then
       storage.structs[struct.id] = nil
       -- struct.entity.destroy()
-      struct.beacon_interface.destroy()
+      if struct.beacon_interface and struct.beacon_interface.valid then
+        struct.beacon_interface.destroy()
+      end
       if struct.container_inventory.valid then
         spill_entity_inventory(struct.container, defines.inventory.chest)
       end
@@ -337,7 +350,9 @@ local deathrattles = {
         spill_entity_inventory(struct.entity, defines.inventory.crafter_modules)
       end
       struct.entity.destroy()
-      struct.beacon_interface.destroy()
+      if struct.beacon_interface and struct.beacon_interface.valid then
+        struct.beacon_interface.destroy()
+      end
       -- struct.container.destroy()
       struct.proxy_container_a.destroy()
       struct.proxy_container_b.destroy()
@@ -364,7 +379,7 @@ local function on_research_toggled(event)
     local bonus_quality = get_bonus_quality(force)
     for _, struct in pairs(storage.structs) do
       if struct.entity.force == force then
-        update_beacon_interface(struct, bonus_quality)
+        update_quality(struct, bonus_quality)
       end
     end
   end
@@ -402,3 +417,16 @@ script.on_event(defines.events.on_gui_selected_tab_changed, function(event)
     end
   end
 end)
+
+-- Beacons can be built, mined, cloned or refilled with modules without raising an event this mod
+-- listens to, so the foreign part of a machine's effects is refreshed once per second instead of
+-- polling every tick (Beacons.update returns immediately when nothing changed).
+script.on_nth_tick(60, function(event)
+  if event.tick == 0 then return end -- nth tick handlers also run on tick 0
+
+  for _, struct in pairs(storage.structs) do
+    Beacons.update(struct)
+  end
+end)
+
+script.on_nth_tick(15, Smart.on_tick)

@@ -1,6 +1,6 @@
 mod_name = "quality-condenser-forked"
 mod_prefix = mod_name .. "--"
-mod_directory = "__" .. mod_name .. "__"
+mod_directory = "__smart-quality-condenser__"
 
 function get_base_quality(quality)
   local setting = settings.startup[mod_prefix .. "base-quality"]
