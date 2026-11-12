@@ -295,21 +295,22 @@ function M.on_gui_checked_state_changed(event)
 end
 function M.on_gui_selected_tab_changed(event)
 	if event.element.name ~= PREFIX .. "tabs" then
-		return
+		return false
 	end
 	local index = event.element.selected_tab_index
 	if index == 3 then
-		return
+		return true
 	end
 	local player = game.get_player(event.player_index)
 	local entry = entry_for(player)
 	if not entry then
 		close(player)
-		return
+		return true
 	end
 	local entity = index == 1 and entry.condenser or entry.box
 	player.opened = entity
 	close(player)
+	return true
 end
 function M.on_tick()
 	for index in pairs(storage.target_views or {}) do

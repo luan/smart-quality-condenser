@@ -407,7 +407,7 @@ script.on_event(defines.events.on_gui_selected_tab_changed, function(event)
       return
     end
   end
-  TargetsGui.on_gui_selected_tab_changed(event)
+  if TargetsGui.on_gui_selected_tab_changed(event) then return end
   if event.element.name == mod_prefix .. "tabbed-pane-modules" then
     if event.element.selected_tab_index == 1 then return end
     event.element.selected_tab_index = 1

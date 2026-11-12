@@ -82,6 +82,21 @@ return function(Smart, Gui, initialize_base, Handler)
 			player.opened and player.opened.name == "smart-quality-condenser-editor",
 			"Targets tab did not open built-in editor"
 		)
+		-- Route both directions through the real dispatcher: leaving Targets destroys its tab element.
+		local dispatch = script.get_event_handler(defines.events.on_gui_selected_tab_changed)
+		for _, destination in ipairs({ 1, 2, 1, 2 }) do
+			local editor_tabs = player.gui.screen["smart-quality-condenser-editor"]["smart-quality-condenser-tabs"]
+			editor_tabs.selected_tab_index = destination
+			dispatch({ player_index = player.index, element = editor_tabs })
+			assert(not editor_tabs.valid, "Targets editor was not closed")
+			assert(player.opened == (destination == 1 and cond or entry.box), "Tab opened the wrong entity")
+			local name = destination == 1 and "quality-condenser-forked--tabbed-pane-modules"
+				or "quality-condenser-forked--tabbed-pane-inventory"
+			local native_tabs = player.gui.relative[name]
+			native_tabs.selected_tab_index = 3
+			dispatch({ player_index = player.index, element = native_tabs })
+			assert(player.gui.screen["smart-quality-condenser-editor"], "Could not reopen Targets")
+		end
 		Gui.open(player, entry)
 		local function body()
 			return player.gui.screen["smart-quality-condenser-editor"]["smart-quality-condenser-tabs"]["content-3"]
